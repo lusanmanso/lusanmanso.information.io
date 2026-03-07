@@ -1,6 +1,8 @@
 from bs4 import BeautifulSoup
 import pandas as pd
 import regex as re
+from pathlib import Path
+
 
 class WikipediaAnalytics:
     def __init__(self, list_of_strings):
@@ -13,42 +15,47 @@ class WikipediaAnalytics:
             raise ValueError("list_of_strings debe ser una lista o tuple de strings.")
 
         if not all(isinstance(item, str) for item in list_of_strings):
-            raise ValueError("Todos los elementos de list_of_strings deben ser strings.")
+            raise ValueError(
+                "Todos los elementos de list_of_strings deben ser strings."
+            )
 
         self.sources = list_of_strings
         self.df = None  # Se inicializará en scrap()
 
+    def _read_html(self, source: str) -> str:
+        p = Path(source)
+        return p.read_text()
+
     def scrap(self):
-      """
-      Inicializa el DataFrame.
-      Aquí deberías procesar tus archivos HTML y llenar self.df.
-      En este ejemplo se deja un df básico como placeholder.
-      """
+        """
+        Inicializa el DataFrame.
+        Aquí deberías procesar tus archivos HTML y llenar self.df.
+        En este ejemplo se deja un df básico como placeholder.
+        """
 
-      """
-      - self.df siempre existe al terminar y tiene mismas columnas en el mismo orden + cada fila representa un país
-      """
-      target_columns = [
-         "Country Name",
-         "Latitude (º)",
-         "Longitude(º)",
-         "Area (KM^2)",
-         "Water (%)",
-         "Population (hab.)",
-         "Density (hab./km^2)",
-         "GDP ($)",
-         "Last Event Date",
-      ]
+        """
+        - self.df siempre existe al terminar y tiene mismas columnas en el mismo orden + cada fila representa un país
+        """
+        target_columns = [
+            "Country Name",
+            "Latitude (º)",
+            "Longitude(º)",
+            "Area (KM^2)",
+            "Water (%)",
+            "Population (hab.)",
+            "Density (hab./km^2)",
+            "GDP ($)",
+            "Last Event Date",
+        ]
 
-      records = []
+        records = []
 
-      self.df = pd.DataFrame.from_records(records, columns=target_columns)
-      self.df["Last Event Date"] = pd.to_datetime(self.df["Last Event Date"], errors='coerce')
+        self.df = pd.DataFrame.from_records(records, columns=target_columns)
+        self.df["Last Event Date"] = pd.to_datetime(
+            self.df["Last Event Date"], errors="coerce"
+        )
 
-      return self
-
-      pass
-
+        return self
 
     def select_row_by_value(self, col_name, value):
         """
