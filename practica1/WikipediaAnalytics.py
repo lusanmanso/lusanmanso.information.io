@@ -1,7 +1,6 @@
 from bs4 import BeautifulSoup
-import pandas as pd
+# import pandas as pd
 import regex as re
-
 
 class WikipediaAnalytics:
    def __init__(self, list_of_strings):
@@ -25,6 +24,30 @@ class WikipediaAnalytics:
 
       return float(number)
 
+   # Para el PIB
+   def clean_gdp(self, value):
+      if not value:
+         return None
+
+      value = value.lower()
+
+      match = re.search(r'([\d\s\.,\xa0\u202f\u200b]+)', value)
+
+      if match:
+         raw_number = match.group(1)
+         base_gdp = re.sub(r'[^\d,]', '', raw_number).replace(',', '.')
+
+         base_gdp = float(base_gdp)
+         # aplicar multiplicadores segun escala
+         if 'trillones' in value:
+            return base_gdp * 1e18
+         elif 'billones' in value:
+            return base_gdp * 1e12
+         elif 'millones' in value:
+            return base_gdp * 1e6
+         else:
+            return base_gdp
+
    # Para las fechas
    def clean_date(self, value):
       if not value:
@@ -46,6 +69,26 @@ class WikipediaAnalytics:
 
       return f"{day}/{month_number}/{year}"
 
+   def clean_coordinates(self, value):
+      if not value:
+         return None
+
+      # numeros seguidos de °, ′, ″ y una letra de hemisferio
+      match = re.search(r'(\d+)[°º]\s*(\d+)[\'′]\s*(\d+)["″]\s*([NSOEW])', value.upper())
+
+      if match:
+         degrees = int(match.group(1))
+         minutes = int(match.group(2))
+         seconds = int(match.group(3))
+         hemisphere = match.group(4)
+
+         decimal_degrees = degrees + (minutes / 60) + (seconds / 3600)
+
+         if hemisphere in ['S', 'W', 'O']:
+            decimal_degrees *= -1
+
+         return decimal_degrees
+
    def scrap(self):
 
       # 1. Abrir el archivo HTML local y parsearlo con bs4 para convertirlo en un objeto navegable
@@ -61,7 +104,7 @@ class WikipediaAnalytics:
          # Buscar la tabla que en wikipedia es siempre una infobox
          table = soup.find('table', {'class': 'infobox'})
 
-         area, water, population, density, GPD, last_event, latitude, longitude = "", "", "", "", "", "", "", ""
+         area, water, population, density, GDP, last_event, latitude, longitude = None, None, None, None, None, None, None, None
 
          current_section = None  # evitar UnboundLocalError, sirve para marcar por secciones porque el valor no está en la misma fila
 
@@ -75,7 +118,7 @@ class WikipediaAnalytics:
                current_section = 'area'
             elif 'población' in row_text:
                current_section = 'population'
-            elif 'pib' in row_text:
+            elif 'pib' in row_text and 'nominal' in row_text:
                current_section = 'gdp'
             elif 'formación' in row_text:
                current_section = 'history'
@@ -94,31 +137,31 @@ class WikipediaAnalytics:
                   current_section = None # reset para evitar coger el valor de otra section
 
                # POBLACION
-               if current_section == 'population' and 'censo' in label:
+               if current_section == 'population' and ('censo' in label or 'estimación' in label):
                   population = self.clean_number(value)
                # DENSIDAD
                elif 'densidad' in label:
                   density = self.clean_number(value)
                   current_section = None
 
-               # GPD
-               if current_section == 'gpd' and 'total' in label and 'dólares' in value:
-                  GPD = self.clean_number(value)
+               # GDP
+               if current_section == 'gdp' and 'total' in label:
+                  GDP = self.clean_gdp(value)
                   current_section = None
 
                # FECHA
                if current_section == 'history':
-                  date = self.clean_date(value)
-                  if date:
-                     last_event = date
-                  current_section = None
+                  last_event = self.clean_date(value)
 
+               # COORDENADAS
+               if 'coordenadas' in label:
+                  lat_span = cells[1].find('span', class_='latitude')
+                  lon_span = cells[1].find('span', class_='longitde')
 
-         """
-            'last_event': last_event,
-            'latitude': latitude,
-            'longitude': longitude
-         """
+                  if lat_span and lon_span:
+                     latitude = float(lat_span.get_text(strip=True))
+                     longitude = float(lon_span.get_text(strip=True))
+
          # dicc para comprobacion
          raw_data = {
             'country_name': match_title.group(1),
@@ -126,12 +169,14 @@ class WikipediaAnalytics:
             'water': water,
             'population': population,
             'density': density,
-            'GPD': GPD,
+            'GDP': GDP,
             'last_event': last_event,
+            'latitude': latitude,
+            'longitude': longitude
          }
 
-         # print de comprobacion para espania
-         if 'espania' in route.lower():
+         # print de comprobacion para grecia
+         if 'serbia' in route.lower():
             print(f"Comprobacion de datos {route}")
             for key, value in raw_data.items():
                print(f"{key}: {value}")
@@ -162,6 +207,6 @@ class WikipediaAnalytics:
       pass
 
 if __name__ == "__main__":
-   files = ["files/espania_es.html"]
+   files = ["files\serbia_es.html"]
    scraper = WikipediaAnalytics(files)
    scraper.scrap()
