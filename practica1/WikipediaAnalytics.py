@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
-# import pandas as pd
+import pandas as pd
 import regex as re
+import numpy as np
 
 class WikipediaAnalytics:
    def __init__(self, list_of_strings):
@@ -16,13 +17,23 @@ class WikipediaAnalytics:
       if not value:
          return None
 
+      value = value.lower()
+
+      if '-' in value:
+         return np.nan
+
       match = re.search(r'([\d\s\.,\xa0\u202f\u200b\n\t]+)', value)
       if match:
          raw_number = match.group(1)
          cleaned_number = re.sub(r'[^\d,]', '', raw_number)
          number = cleaned_number.replace(',', '.')
 
-      return float(number)
+         try:
+            return float(number)
+         except ValueError:
+            return np.nan
+
+      return np.nan
 
    # Para el PIB
    def clean_gdp(self, value):
@@ -100,6 +111,7 @@ class WikipediaAnalytics:
       return None, None
 
    def scrap(self):
+      country_list = []
 
       # 1. Abrir el archivo HTML local y parsearlo con bs4 para convertirlo en un objeto navegable
       for route in self.sources:
@@ -176,23 +188,30 @@ class WikipediaAnalytics:
 
          # dicc para comprobacion
          raw_data = {
-            'country_name': match_title.group(1),
-            'area': float(area),
-            'water': water,
-            'population': population,
-            'density': density,
-            'GDP': GDP,
-            'last_event': last_event,
-            'latitude': latitude,
-            'longitude': longitude
+            'Country Name': match_title.group(1),
+            'Area (KM^2)': area,
+            'Water (%)': water,
+            'Population (hab.)': population,
+            'Density (hab./km^2)': density,
+            'GDP ($)': GDP,
+            'Last Event Date': last_event,
+            'Latitude (°)': latitude,
+            'Longitude (°)': longitude
          }
 
+         country_list.append(raw_data)
+
+         """
          # print de comprobacion para grecia
          if 'espania' in route.lower():
             print(f"Comprobacion de datos {route}")
             for key, value in raw_data.items():
                print(f"{key}: {value}")
             print("fin")
+         """
+
+         self.df = pd.DataFrame(country_list)
+         # self.df['Last Event Date'] = pd.to_datetime(self.df['Last Event Date'])
 
          pass
 
@@ -219,6 +238,10 @@ class WikipediaAnalytics:
       pass
 
 if __name__ == "__main__":
-   files = ["files\espania_es.html"]
-   scraper = WikipediaAnalytics(files)
-   scraper.scrap()
+   files = ["files\espania_es.html", "files\grecia_es.html", "files\italia_es.html", "files\polonia_es.html", "files\serbia_es.html"]
+
+   analytics = WikipediaAnalytics(files)
+   analytics.scrap()
+
+   print(analytics.df.to_string())
+   print(analytics.df.dtypes)
