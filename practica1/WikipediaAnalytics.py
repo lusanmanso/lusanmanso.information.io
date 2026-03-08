@@ -71,23 +71,33 @@ class WikipediaAnalytics:
 
    def clean_coordinates(self, value):
       if not value:
-         return None
+         return None,
 
-      # numeros seguidos de °, ′, ″ y una letra de hemisferio
-      match = re.search(r'(\d+)[°º]\s*(\d+)[\'′]\s*(\d+)["″]\s*([NSOEW])', value.upper())
+      pattern = r'(\d+)[°º]\s*(\d+)[\'′]\s*(\d+)["″]\s*([NS])\s*(\d+)[°º]\s*(\d+)[\'′]\s*(\d+)["″]\s*([EOW])'
+      match = re.search(pattern, value.upper())
 
       if match:
-         degrees = int(match.group(1))
-         minutes = int(match.group(2))
-         seconds = int(match.group(3))
-         hemisphere = match.group(4)
+         lat_deg = float(match.group(1))
+         lat_min = float(match.group(2))
+         lat_sec = float(match.group(3))
+         lat_hem = match.group(4)
 
-         decimal_degrees = degrees + (minutes / 60) + (seconds / 3600)
+         lat_decimal = lat_deg + (lat_min / 60) + (lat_sec / 3600)
+         if lat_hem == 'S':
+               lat_decimal *= -1
 
-         if hemisphere in ['S', 'W', 'O']:
-            decimal_degrees *= -1
+         lon_deg = float(match.group(5))
+         lon_min = float(match.group(6))
+         lon_sec = float(match.group(7))
+         lon_hem = match.group(8)
 
-         return decimal_degrees
+         lon_decimal = lon_deg + (lon_min / 60) + (lon_sec / 3600)
+         if lon_hem in ['O', 'W']:
+               lon_decimal *= -1
+
+         return lat_decimal, lon_decimal
+
+      return None, None
 
    def scrap(self):
 
@@ -105,6 +115,17 @@ class WikipediaAnalytics:
          table = soup.find('table', {'class': 'infobox'})
 
          area, water, population, density, GDP, last_event, latitude, longitude = None, None, None, None, None, None, None, None
+
+         coord_span = soup.find('span', class_='geo-dms')
+
+         if coord_span:
+            coord_text = coord_span.get_text(separator=" ", strip=True)
+
+            lat_calc, lon_calc = self.clean_coordinates(coord_text)
+            if lat_calc is not None and lon_calc is not None:
+               latitude = lat_calc
+               longitude = lon_calc
+
 
          current_section = None  # evitar UnboundLocalError, sirve para marcar por secciones porque el valor no está en la misma fila
 
@@ -153,15 +174,6 @@ class WikipediaAnalytics:
                if current_section == 'history':
                   last_event = self.clean_date(value)
 
-               # COORDENADAS
-               if 'coordenadas' in label:
-                  lat_span = cells[1].find('span', class_='latitude')
-                  lon_span = cells[1].find('span', class_='longitde')
-
-                  if lat_span and lon_span:
-                     latitude = float(lat_span.get_text(strip=True))
-                     longitude = float(lon_span.get_text(strip=True))
-
          # dicc para comprobacion
          raw_data = {
             'country_name': match_title.group(1),
@@ -176,7 +188,7 @@ class WikipediaAnalytics:
          }
 
          # print de comprobacion para grecia
-         if 'serbia' in route.lower():
+         if 'espania' in route.lower():
             print(f"Comprobacion de datos {route}")
             for key, value in raw_data.items():
                print(f"{key}: {value}")
@@ -207,6 +219,6 @@ class WikipediaAnalytics:
       pass
 
 if __name__ == "__main__":
-   files = ["files\serbia_es.html"]
+   files = ["files\espania_es.html"]
    scraper = WikipediaAnalytics(files)
    scraper.scrap()
