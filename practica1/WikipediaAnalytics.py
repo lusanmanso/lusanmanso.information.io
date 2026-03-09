@@ -3,6 +3,10 @@ import pandas as pd
 import regex as re
 import numpy as np
 
+"""
+--- IMPORTANTE ---
+El codigo funciona con los .html en la raíz, pero por organización en GitHub lo coloqué en /files/...html
+"""
 class WikipediaAnalytics:
    def __init__(self, list_of_strings):
       """
@@ -148,7 +152,7 @@ class WikipediaAnalytics:
             print(f"DEBUG: coord_text = '{coord_text}'")  # Ver exactamente qué se extrae
             print(f"DEBUG: repr = {repr(coord_text)}")    # Ver caracteres Unicode
             """
-            
+
             lat_calc, lon_calc = self.clean_coordinates(coord_text)
             if lat_calc is not None and lon_calc is not None:
                latitude = lat_calc
