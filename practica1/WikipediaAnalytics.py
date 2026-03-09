@@ -12,28 +12,34 @@ class WikipediaAnalytics:
       self.sources = list_of_strings
       self.df = None  # Se inicializará en scrap()
 
-   # Para los numeros
    def clean_number(self, value):
-      if not value:
-         return None
+    if not value:
+        return None
 
-      value = value.lower()
+    txt = value.lower()
+    if '-' in txt:
+        return np.nan
 
-      if '-' in value:
-         return np.nan
+    m = re.search(r'([\d\s\.,\xa0\u202f\u200b\n\t]+)', txt)
+    if not m:
+        return np.nan
 
-      match = re.search(r'([\d\s\.,\xa0\u202f\u200b\n\t]+)', value)
-      if match:
-         raw_number = match.group(1)
-         cleaned_number = re.sub(r'[^\d,]', '', raw_number)
-         number = cleaned_number.replace(',', '.')
+    raw = m.group(1)
+    num = re.sub(r'[^\d,\.]', '', raw)  # conservar coma y punto
 
-         try:
-            return float(number)
-         except ValueError:
-            return np.nan
+    # Normalizar separadores decimal/miles
+    if ',' in num and '.' in num:
+        if num.rfind(',') > num.rfind('.'):
+            num = num.replace('.', '').replace(',', '.')
+        else:
+            num = num.replace(',', '')
+    else:
+        num = num.replace(',', '.')
 
-      return np.nan
+    try:
+        return float(num)
+    except ValueError:
+        return np.nan
 
    # Para el PIB
    def clean_gdp(self, value):
@@ -131,12 +137,18 @@ class WikipediaAnalytics:
          table = soup.find('table', {'class': 'infobox'})
 
          area, water, population, density, GDP, last_event, latitude, longitude = None, None, None, None, None, None, None, None
+
+
          coord_span = soup.find('span', class_='geo-dms')
 
 
          if coord_span:
             coord_text = coord_span.get_text(separator=" ", strip=True)
-
+            """"
+            print(f"DEBUG: coord_text = '{coord_text}'")  # Ver exactamente qué se extrae
+            print(f"DEBUG: repr = {repr(coord_text)}")    # Ver caracteres Unicode
+            """
+            
             lat_calc, lon_calc = self.clean_coordinates(coord_text)
             if lat_calc is not None and lon_calc is not None:
                latitude = lat_calc
@@ -198,20 +210,11 @@ class WikipediaAnalytics:
             'Density (hab./km^2)': density,
             'GDP ($)': GDP,
             'Last Event Date': last_event,
-            'Latitude (°)': latitude,
-            'Longitude (°)': longitude
+            'Latitude (º)': latitude,
+            'Longitude(º)': longitude
          }
 
          country_list.append(raw_data)
-
-         """
-         # print de comprobacion para grecia
-         if 'espania' in route.lower():
-            print(f"Comprobacion de datos {route}")
-            for key, value in raw_data.items():
-               print(f"{key}: {value}")
-            print("fin")
-         """
 
          self.df = pd.DataFrame(country_list)
 
@@ -233,25 +236,43 @@ class WikipediaAnalytics:
 
       if col_name not in self.df.columns:
          raise ValueError(f"Column '{col_name}' does not exist in df.")
-      return self.df[self.df[col_name] == value]
+
+      filtered_rows = self.df[self.df[col_name] == value]
+      list = filtered_rows.to_dict('records')
+      result = pd.DataFrame(list)
+
+      if result.empty:
+         return None
+
+      return result
 
    def get_columns(self, col_names):
-      """
-      Recibe una columna o lista de columnas y devuelve esa parte del DataFrame.
-      """
-      if self.df is None or self.df.empty:
-         raise ValueError("df empty. Run scrap() first.")
+         """
+         Recibe una columna o lista de columnas y devuelve esa parte del DataFrame.
+         """
+         if self.df is None or self.df.empty:
+            raise ValueError("df empty. Run scrap() first.")
 
-      if isinstance(col_names, str):
-         col_names = [col_names]
-      elif not isinstance(col_names, list):
-         raise TypeError("col_names must be a string or a list of strings.")
+         if isinstance(col_names, str):
+            col_names = [col_names]
 
-      missing_cols = [col for col in col_names if col not in self.df.columns]
-      if missing_cols:
-         raise ValueError(f"Columns {missing_cols} do not exist in df.")
+         for col in col_names:
+            if col not in self.df.columns:
+               raise ValueError("Invalid column")
 
-      return self.df[col_names]
+         """"
+         missing_cols = [col for col in col_names if col not in self.df.columns]
+         if missing_cols:
+            raise KeyError("Invalid column")
+         """
+
+         extracted = self.df[col_names]
+         list = extracted.to_dict('records')
+
+         result = pd.DataFrame(list)
+
+         return result
+
 
    def aggregate_column(self, col_name, operation):
       """
@@ -265,32 +286,31 @@ class WikipediaAnalytics:
          raise ValueError("df empty. Run scrap() first.")
 
       if col_name not in self.df.columns:
-         raise ValueError(f"Column '{col_name}' does not exist in df.")
+         raise ValueError("Column not found")
 
       # Restrigir operaciones permitidas
       valid_ops = ['max', 'min', 'mean']
       if operation not in valid_ops:
-         raise ValueError(f"Invalid operation '{operation}'. Valid operations are: {valid_ops}.")
+         raise ValueError("Invalid operation")
 
       # Verificar que col es numerica
       if not pd.api.types.is_numeric_dtype(self.df[col_name]):
          raise ValueError(f"Column '{col_name}' must be numeric for aggregation.")
 
       # Ignorar NaN en la agregación
-      result = self.df[col_name].dropna().agg(operation)
-      if pd.isna(result):
-         return np.nan
+      value = self.df[col_name].dropna().agg(operation)
+      value = np.nan if pd.isna(value) else float(value)
 
-      return float(result)
+      return value
 
 if __name__ == "__main__":
    # Cambiamos las contrabarras (\) por barras normales (/)
    files = [
-       "files/espania_es.html",
-       "files/grecia_es.html",
-       "files/italia_es.html",
-       "files/polonia_es.html",
-       "files/serbia_es.html"
+       "espania_es.html",
+       "grecia_es.html",
+       "italia_es.html",
+       "polonia_es.html",
+       "serbia_es.html"
    ]
    # Nota: Si tu carpeta 'files' está dentro de 'practica1',
    # pon "practica1/files/espania_es.html", etc.
