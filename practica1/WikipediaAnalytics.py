@@ -54,7 +54,7 @@ class WikipediaAnalytics:
             return base_gdp * 1e18
          elif 'billones' in value:
             return base_gdp * 1e12
-         elif 'millones' in value:
+         elif 'millones' in value or 'mill' in value:
             return base_gdp * 1e6
          else:
             return base_gdp
@@ -66,8 +66,10 @@ class WikipediaAnalytics:
 
       months = { 'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04', 'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08', 'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12' }
 
+      value_clean = re.sub(r'\[.*?\]', ' ', value.lower())
+
       # (1 o dos numeros) + " de" + (letras del mes) + " de" + (4 numeros del año)
-      match = re.findall(r'(\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})', value.lower())
+      match = re.findall(r'(\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})', value_clean)
 
       if match:
          latest_date = match[-1]  # coger la última fecha encontrada
@@ -76,13 +78,15 @@ class WikipediaAnalytics:
          month_name = latest_date[1]
          year = latest_date[2]
 
-         month_number = months[month_name]
+         if month_name in months:
+            month_number = months[month_name]
+            return f"{day}/{month_number}/{year}"
 
-      return f"{day}/{month_number}/{year}"
+      return None
 
    def clean_coordinates(self, value):
       if not value:
-         return None,
+         return None, None
 
       pattern = r'(\d+)[°º]\s*(\d+)[\'′]\s*(\d+)["″]\s*([NS])\s*(\d+)[°º]\s*(\d+)[\'′]\s*(\d+)["″]\s*([EOW])'
       match = re.search(pattern, value.upper())
@@ -127,8 +131,8 @@ class WikipediaAnalytics:
          table = soup.find('table', {'class': 'infobox'})
 
          area, water, population, density, GDP, last_event, latitude, longitude = None, None, None, None, None, None, None, None
-
          coord_span = soup.find('span', class_='geo-dms')
+
 
          if coord_span:
             coord_text = coord_span.get_text(separator=" ", strip=True)
@@ -153,13 +157,11 @@ class WikipediaAnalytics:
                current_section = 'population'
             elif 'pib' in row_text and 'nominal' in row_text:
                current_section = 'gdp'
-            elif 'formación' in row_text:
-               current_section = 'history'
 
             # atrapar flags de 2 celdas
             if len(cells) >= 2:
-               label = cells[0].get_text(strip=True).lower() # etiqueta de la fila
-               value = cells[1].get_text(strip=True).lower()
+               label = cells[0].get_text(separator=" ", strip=True).lower() # etiqueta de la fila
+               value = cells[1].get_text(separator=" ", strip=True).lower()
 
                # AREA
                if current_section == 'area' and 'total' in label and 'km' in value:
@@ -183,8 +185,9 @@ class WikipediaAnalytics:
                   current_section = None
 
                # FECHA
-               if current_section == 'history':
-                  last_event = self.clean_date(value)
+               date_found = self.clean_date(value)
+               if date_found:
+                  last_event = date_found
 
          # dicc para comprobacion
          raw_data = {
@@ -211,7 +214,13 @@ class WikipediaAnalytics:
          """
 
          self.df = pd.DataFrame(country_list)
-         # self.df['Last Event Date'] = pd.to_datetime(self.df['Last Event Date'])
+
+         # Añadimos errors='coerce'
+         self.df['Last Event Date'] = pd.to_datetime(
+             self.df['Last Event Date'],
+             format='%d/%m/%Y',
+             errors='coerce'
+         )
 
          pass
 
@@ -238,7 +247,16 @@ class WikipediaAnalytics:
       pass
 
 if __name__ == "__main__":
-   files = ["files\espania_es.html", "files\grecia_es.html", "files\italia_es.html", "files\polonia_es.html", "files\serbia_es.html"]
+   # Cambiamos las contrabarras (\) por barras normales (/)
+   files = [
+       "files/espania_es.html",
+       "files/grecia_es.html",
+       "files/italia_es.html",
+       "files/polonia_es.html",
+       "files/serbia_es.html"
+   ]
+   # Nota: Si tu carpeta 'files' está dentro de 'practica1',
+   # pon "practica1/files/espania_es.html", etc.
 
    analytics = WikipediaAnalytics(files)
    analytics.scrap()
