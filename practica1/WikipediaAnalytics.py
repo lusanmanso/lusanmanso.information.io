@@ -228,13 +228,30 @@ class WikipediaAnalytics:
       """
       Devuelve la fila (o filas) cuyo valor en col_name coincide con value.
       """
-      pass
+      if self.df is None or self.df.empty:
+         raise ValueError("df empty. Run scrap() first.")
+
+      if col_name not in self.df.columns:
+         raise ValueError(f"Column '{col_name}' does not exist in df.")
+      return self.df[self.df[col_name] == value]
 
    def get_columns(self, col_names):
       """
       Recibe una columna o lista de columnas y devuelve esa parte del DataFrame.
       """
-      pass
+      if self.df is None or self.df.empty:
+         raise ValueError("df empty. Run scrap() first.")
+
+      if isinstance(col_names, str):
+         col_names = [col_names]
+      elif not isinstance(col_names, list):
+         raise TypeError("col_names must be a string or a list of strings.")
+
+      missing_cols = [col for col in col_names if col not in self.df.columns]
+      if missing_cols:
+         raise ValueError(f"Columns {missing_cols} do not exist in df.")
+
+      return self.df[col_names]
 
    def aggregate_column(self, col_name, operation):
       """
@@ -244,7 +261,27 @@ class WikipediaAnalytics:
       - 'mean'
       Devuelve el resultado como un float.
       """
-      pass
+      if self.df is None or self.df.empty:
+         raise ValueError("df empty. Run scrap() first.")
+
+      if col_name not in self.df.columns:
+         raise ValueError(f"Column '{col_name}' does not exist in df.")
+
+      # Restrigir operaciones permitidas
+      valid_ops = ['max', 'min', 'mean']
+      if operation not in valid_ops:
+         raise ValueError(f"Invalid operation '{operation}'. Valid operations are: {valid_ops}.")
+
+      # Verificar que col es numerica
+      if not pd.api.types.is_numeric_dtype(self.df[col_name]):
+         raise ValueError(f"Column '{col_name}' must be numeric for aggregation.")
+
+      # Ignorar NaN en la agregación
+      result = self.df[col_name].dropna().agg(operation)
+      if pd.isna(result):
+         return np.nan
+
+      return float(result)
 
 if __name__ == "__main__":
    # Cambiamos las contrabarras (\) por barras normales (/)
