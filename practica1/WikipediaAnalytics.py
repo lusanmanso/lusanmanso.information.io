@@ -120,7 +120,7 @@ class WikipediaAnalytics:
          if lon_hem in ['O', 'W']:
                lon_decimal *= -1
 
-         return lat_decimal, lon_decimal
+         return round(lat_decimal,3), round(lon_decimal, 3)
 
       return None, None
 
@@ -141,7 +141,6 @@ class WikipediaAnalytics:
          table = soup.find('table', {'class': 'infobox'})
 
          area, water, population, density, GDP, last_event, latitude, longitude = None, None, None, None, None, None, None, None
-
 
          coord_span = soup.find('span', class_='geo-dms')
 
@@ -215,7 +214,7 @@ class WikipediaAnalytics:
             'GDP ($)': GDP,
             'Last Event Date': last_event,
             'Latitude (º)': latitude,
-            'Longitude(º)': longitude
+            'Longitude (º)': longitude
          }
 
          country_list.append(raw_data)
