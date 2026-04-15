@@ -4,8 +4,8 @@ import networkx as nx
 import pandas as pd
 from gensim.corpora import Dictionary
 from gensim.models import LdaModel
+from gensim.utils import simple_preprocess
 from textblob import TextBlob
-
 
 class Email:
     """
@@ -157,95 +157,140 @@ class Email:
                 return 'neutral'
 
         self.df['sentiment_label'] = self.df['polarity'].apply(categorize_polarity)
-        
+
         return self.df
 
+    """
+    Preprocesa un texto para LDA.
+
+    Libertad del alumno:
+    - Puedes decidir cómo tokenizar.
+    - Puedes eliminar stopwords.
+    - Puedes aplicar stemming o lematización si lo deseas.
+
+    Restricción:
+    - Debe devolver una lista de tokens lista para construir el corpus.
+
+    Returns
+    -------
+    List[str]
+    """
     def preprocess_text_for_lda(self, text: str) -> List[str]:
-        """
-        Preprocesa un texto para LDA.
+        return simple_preprocess(str(text), deacc=True) # tokenizar y eliminar acentos
 
-        Libertad del alumno:
-        - Puedes decidir cómo tokenizar.
-        - Puedes eliminar stopwords.
-        - Puedes aplicar stemming o lematización si lo deseas.
 
-        Restricción:
-        - Debe devolver una lista de tokens lista para construir el corpus.
+    """
+    Entrena un modelo LDA con gensim.
 
-        Returns
-        -------
-        List[str]
-        """
-        pass
-
+    Returns
+    -------
+    tuple
+        (lda_model, dictionary, corpus)
+    """
     def train_topic_model(
         self,
         num_topics: int = 3,
         passes: int = 15,
         random_state: int = 42
     ) -> Tuple[LdaModel, Dictionary, List[List[tuple]]]:
-        """
-        Entrena un modelo LDA con gensim.
 
-        Requisitos mínimos:
-        - Preprocesar los textos.
-        - Construir un Dictionary de gensim.
-        - Construir el corpus bag-of-words.
-        - Entrenar un LdaModel.
-        - Guardar dictionary, corpus y lda_model como atributos.
+        if self.df is None or 'text' not in self.df.columns:
+            raise ValueError("DataFrame no inicializado o falta la columna 'text'")
 
-        Returns
-        -------
-        tuple
-            (lda_model, dictionary, corpus)
-        """
-        pass
+        # preprocesar textos
+        processed_texts = self.df['text'].apply(self.preprocess_text_for_lda).tolist()
+        # construir dictionary del gensim mapeando cada palabra a un unico id
+        self.dictionary = Dictionary(processed_texts)
+        # construir corpus bag-of-words para contar la feecuencia de cada palabra en cada correo
+        self.corpus = [self.dictionary.doc2bow(text) for text in processed_texts]
 
+        # entrenar el lda
+        self.lda_model = LdaModel(
+            corpus=self.corpus,
+            id2word=self.dictionary,
+            num_topics=num_topics,
+            random_state=random_state,
+            passes=passes
+        )
+
+        # guardarlo como atrib y devolverlo
+        return self.lda_model, self.dictionary, self.corpus
+
+
+    """
+    Asigna a cada correo su tema dominante.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame con asignación temática.
+    """
     def assign_topics(self) -> pd.DataFrame:
-        """
-        Asigna a cada correo su tema dominante.
+        if self.lda_model is None or self.corpus is None:
+            raise ValueError("No LDA o no corpus")
 
-        Requisitos mínimos:
-        - Utilizar self.lda_model y self.corpus.
-        - Crear, al menos, estas columnas:
-          * dominant_topic (int)
-          * topic_keywords (str)
+        dominant_topics = []
+        topic_keywords = []
 
-        Returns
-        -------
-        pd.DataFrame
-            DataFrame con asignación temática.
-        """
-        pass
+        for bow in self.corpus:
+            topic_probs = self.lda_model[bow] # devuelve (topic_id, prob) por tema
 
+            dominant_topic = max(topic_probs, key=lambda x: x[1])[0] # tema con mayor probabilidad
+            dominant_topics.append(dominant_topic)
+
+            # obtener las palabras clave del tema dominante
+            words = [word for word, weight in self.lda_model.show_topic(dominant_topic, topn=5)]
+            topic_keywords.append(", ".join(words))
+
+        # añadimos nuevas cols al df
+        self.df['dominant_topic'] = dominant_topics
+        self.df['topic_keywords'] = topic_keywords
+
+        return self.df
+
+
+    """
+    Genera un resumen estructurado por tema.
+
+    Returns
+    -------
+    pd.DataFrame
+    """
     def get_topic_report(self, topn_words: int = 5) -> pd.DataFrame:
-        """
-        Genera un resumen estructurado por tema.
+        if 'dominant_topic' not in self.df.columns or 'polarity' not in self.df.columns:
+            raise ValueError("Falta asignación de temas o modelo LDA")
 
-        Formato mínimo esperado del DataFrame de salida:
-        - topic_id
-        - keywords
-        - num_emails
-        - mean_polarity
+        # agrupamos por el tema dominante
+        grouped = self.df.groupby('dominant_topic')
 
-        Puedes añadir columnas extra si aportan valor.
+        # calculamos métricas requeridas
+        report_data = []
+        for topic_id, group in grouped:
+            keywords = group['topic_keywords'].iloc[0]
+            num_emails = len(group)
+            mean_polarity = group['polarity'].mean()
 
-        Returns
-        -------
-        pd.DataFrame
-        """
-        pass
+            report_data.append({
+                'topic_id': topic_id,
+                'keywords': keywords,
+                'num_emails': num_emails,
+                'mean_polarity': mean_polarity
+            })
 
+        report_df = pd.DataFrame(report_data).sort_values(by='topic_id').reset_index(drop=True)
+        return report_df
+
+    """
+    Devuelve los correos enviados por un remitente concreto.
+    """
     def get_emails_by_sender(self, sender: str) -> pd.DataFrame:
-        """
-        Devuelve los correos enviados por un remitente concreto.
-        """
+        
         pass
 
+    """
+    Devuelve los correos asociados a un tema concreto.
+    """
     def get_emails_by_topic(self, topic_id: int) -> pd.DataFrame:
-        """
-        Devuelve los correos asociados a un tema concreto.
-        """
         pass
 
     """
@@ -268,5 +313,3 @@ class Email:
             "num_edges": self.graph.number_of_edges(),
             "density": nx.density(self.graph)
         }
-
-        pass
