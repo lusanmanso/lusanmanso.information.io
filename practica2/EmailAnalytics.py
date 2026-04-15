@@ -100,9 +100,12 @@ class Email:
 
         # iterar sobre cada correo (fila de df)
         for _, row in self.df.iterrows():
-            sender = str(row['sender']).strip()
+            if pd.isna(row['sender']):
+                continue
 
-            if not sender: # si no hay remitente pues saltar
+            sender = str(row['sender']).strip().lower()
+
+            if not sender or sender == 'nan' : # si no hay remitente pues saltar
                 continue
 
             def process_dest(destinations_str):
@@ -110,7 +113,8 @@ class Email:
                     return
 
                 # separar por ';' y quitar espacios en blanco
-                destinations = [d.strip() for d in str(destinations_str).split(';') if d.strip]
+                destinations_str = destinations_str.replace(',', ';') # en caso de que usen ',' como separador
+                destinations = [d.strip().lower() for d in str(destinations_str).split(';') if d.strip]
 
                 for dest in destinations:
                     if self.graph.has_edge(sender, dest):
@@ -124,7 +128,7 @@ class Email:
             if include_cc:
                 process_dest(row['cc'])
 
-            return self.graph
+        return self.graph
 
     """
     Calcula sentimiento con TextBlob.
