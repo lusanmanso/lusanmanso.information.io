@@ -284,14 +284,19 @@ class Email:
     Devuelve los correos enviados por un remitente concreto.
     """
     def get_emails_by_sender(self, sender: str) -> pd.DataFrame:
-        
-        pass
+        if self.df is None:
+            raise ValueError("DataFrame no inicializado")
+
+        return self.df[self.df['sender'] == sender]
 
     """
     Devuelve los correos asociados a un tema concreto.
     """
     def get_emails_by_topic(self, topic_id: int) -> pd.DataFrame:
-        pass
+        if self.df is None:
+            raise ValueError("DataFrame no inicializado")
+
+        return self.df[self.df['dominant_topic'] == topic_id]
 
     """
     Devuelve métricas básicas del grafo.
