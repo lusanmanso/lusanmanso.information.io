@@ -126,25 +126,39 @@ class Email:
 
             return self.graph
 
+    """
+    Calcula sentimiento con TextBlob.
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame actualizado con las columnas de sentimiento.
+    """
     def analyze_sentiment(self, text_column: str = "text") -> pd.DataFrame:
-        """
-        Calcula sentimiento con TextBlob.
+        # verif basica
+        if self.df is None or text_column not in self.df.columns:
+            raise ValueError(f"El DataFrame no está inicializado o falta la columna '{text_column}'")
 
-        Requisitos mínimos:
-        - Aplicar TextBlob sobre la columna indicada.
-        - Crear las columnas:
-          * polarity (float)
-          * subjectivity (float)
-          * sentiment_label (str)
-        - El criterio de etiquetado puede ser libre, pero debe generar
-          al menos las clases: 'positive', 'neutral' y 'negative'.
+        # subfun para aplicar TextBlob
+        def extract_sentiment(text):
+            blob = TextBlob(str(text))
+            # devolver ambos valores
+            return pd.Series([blob.sentiment.polarity, blob.sentiment.subjectivity])
 
-        Returns
-        -------
-        pd.DataFrame
-            DataFrame actualizado con las columnas de sentimiento.
-        """
-        pass
+        # aplicar y guardar resultados
+        self.df[['polarity', 'subjectivity']] = self.df[text_column].apply(extract_sentiment)
+
+        # asignar etiquetas de sentimiento
+        def categorize_polarity(pol):
+            if pol > 0.1:
+                return 'positive'
+            elif pol < -0.1:
+                return 'negative'
+            else:
+                return 'neutral'
+
+        self.df['sentiment_label'] = self.df['polarity'].apply(categorize_polarity)
+        
+        return self.df
 
     def preprocess_text_for_lda(self, text: str) -> List[str]:
         """
